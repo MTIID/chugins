@@ -12,24 +12,21 @@
 #include <limits.h>
 
 // declaration of chugin constructor
-CK_DLL_CTOR(vasvf_ctor);
+CK_DLL_CTOR(vafilter_ctor);
 // declaration of chugin desctructor
-CK_DLL_DTOR(vasvf_dtor);
+CK_DLL_DTOR(vafilter_dtor);
 
 // example of getter/setter
-CK_DLL_MFUN(vasvf_setParam);
-CK_DLL_MFUN(vasvf_getParam);
+CK_DLL_MFUN(vafilter_setParam);
+CK_DLL_MFUN(vafilter_getParam);
 
 // for Chugins extending UGen, this is mono synthesis function for 1 sample
-CK_DLL_TICK(vasvf_tick);
+CK_DLL_TICK(vafilter_tick);
 
 // this is a special offset reserved for Chugin internal data
-t_CKINT vasvf_data_offset = 0;
+t_CKINT vafilter_data_offset = 0;
 
 
-// class definition for internal Chugin data
-// (note: this isn't strictly necessary, but serves as example
-// of one recommended approach)
 class VirtualAnalogFunc
 {
 public:
@@ -58,13 +55,17 @@ public:
     }
 };
 
-class VASVF
+class VAFilter
 {
 public:
     // constructor
-    VASVF( t_CKFLOAT fs)
+    VAFilter( t_CKFLOAT fs)
     {
         m_param = 0;
+    }
+
+    void setSVF() {
+        m_func = new SVF();
     }
 
     // for Chugins extending UGen
@@ -93,38 +94,38 @@ private:
 // query function: chuck calls this when loading the Chugin
 // NOTE: developer will need to modify this function to
 // add additional functions to this Chugin
-CK_DLL_QUERY( VASVF )
+CK_DLL_QUERY( VAFilter )
 {
     // hmm, don't change this...
-    QUERY->setname(QUERY, "VASVF");
+    QUERY->setname(QUERY, "VAFilter");
     
     // begin the class definition
     // can change the second argument to extend a different ChucK class
-    QUERY->begin_class(QUERY, "VASVF", "UGen");
+    QUERY->begin_class(QUERY, "VAFilter", "UGen");
 
     // register the constructor (probably no need to change)
-    QUERY->add_ctor(QUERY, vasvf_ctor);
+    QUERY->add_ctor(QUERY, vafilter_ctor);
     // register the destructor (probably no need to change)
-    QUERY->add_dtor(QUERY, vasvf_dtor);
+    QUERY->add_dtor(QUERY, vafilter_dtor);
     
     // for UGen's only: add tick function
-    QUERY->add_ugen_func(QUERY, vasvf_tick, NULL, 1, 1);
+    QUERY->add_ugen_func(QUERY, vafilter_tick, NULL, 1, 1);
     
     // NOTE: if this is to be a UGen with more than 1 channel, 
     // e.g., a multichannel UGen -- will need to use add_ugen_funcf()
     // and declare a tickf function using CK_DLL_TICKF
 
     // example of adding setter method
-    QUERY->add_mfun(QUERY, vasvf_setParam, "float", "param");
+    QUERY->add_mfun(QUERY, vafilter_setParam, "float", "param");
     // example of adding argument to the above method
     QUERY->add_arg(QUERY, "float", "arg");
 
     // example of adding getter method
-    QUERY->add_mfun(QUERY, vasvf_getParam, "float", "param");
+    QUERY->add_mfun(QUERY, vafilter_getParam, "float", "param");
     
     // this reserves a variable in the ChucK internal class to store 
     // referene to the c++ class we defined above
-    vasvf_data_offset = QUERY->add_mvar(QUERY, "int", "@vasvf_data", false);
+    vafilter_data_offset = QUERY->add_mvar(QUERY, "int", "@vaf_data", false);
 
     // end the class definition
     // IMPORTANT: this MUST be called!
@@ -136,40 +137,40 @@ CK_DLL_QUERY( VASVF )
 
 
 // implementation for the constructor
-CK_DLL_CTOR(vasvf_ctor)
+CK_DLL_CTOR(vafilter_ctor)
 {
     // get the offset where we'll store our internal c++ class pointer
-    OBJ_MEMBER_INT(SELF, vasvf_data_offset) = 0;
+    OBJ_MEMBER_INT(SELF, vafilter_data_offset) = 0;
     
     // instantiate our internal c++ class representation
-    VASVF * bcdata = new VASVF(API->vm->get_srate());
+    VAFilter * bcdata = new VAFilter(API->vm->get_srate());
     
     // store the pointer in the ChucK object member
-    OBJ_MEMBER_INT(SELF, vasvf_data_offset) = (t_CKINT) bcdata;
+    OBJ_MEMBER_INT(SELF, vafilter_data_offset) = (t_CKINT) bcdata;
 }
 
 
 // implementation for the destructor
-CK_DLL_DTOR(vasvf_dtor)
+CK_DLL_DTOR(vafilter_dtor)
 {
     // get our c++ class pointer
-    VASVF * bcdata = (VASVF *) OBJ_MEMBER_INT(SELF, vasvf_data_offset);
+    VAFilter * bcdata = (VAFilter *) OBJ_MEMBER_INT(SELF, vafilter_data_offset);
     // check it
     if( bcdata )
     {
         // clean up
         delete bcdata;
-        OBJ_MEMBER_INT(SELF, vasvf_data_offset) = 0;
+        OBJ_MEMBER_INT(SELF, vafilter_data_offset) = 0;
         bcdata = NULL;
     }
 }
 
 
 // implementation for tick function
-CK_DLL_TICK(vasvf_tick)
+CK_DLL_TICK(vafilter_tick)
 {
     // get our c++ class pointer
-    VASVF * c = (VASVF *) OBJ_MEMBER_INT(SELF, vasvf_data_offset);
+    VAFilter * c = (VAFilter *) OBJ_MEMBER_INT(SELF, vafilter_data_offset);
  
     // invoke our tick function; store in the magical out variable
     if(c) *out = c->tick(in);
@@ -180,20 +181,20 @@ CK_DLL_TICK(vasvf_tick)
 
 
 // example implementation for setter
-CK_DLL_MFUN(vasvf_setParam)
+CK_DLL_MFUN(vafilter_setParam)
 {
     // get our c++ class pointer
-    VASVF * bcdata = (VASVF *) OBJ_MEMBER_INT(SELF, vasvf_data_offset);
+    VAFilter * bcdata = (VAFilter *) OBJ_MEMBER_INT(SELF, vafilter_data_offset);
     // set the return value
     RETURN->v_float = bcdata->setParam(GET_NEXT_FLOAT(ARGS));
 }
 
 
 // example implementation for getter
-CK_DLL_MFUN(vasvf_getParam)
+CK_DLL_MFUN(vafilter_getParam)
 {
     // get our c++ class pointer
-    VASVF * bcdata = (VASVF *) OBJ_MEMBER_INT(SELF, vasvf_data_offset);
+    VAFilter * bcdata = (VAFilter *) OBJ_MEMBER_INT(SELF, vafilter_data_offset);
     // set the return value
     RETURN->v_float = bcdata->getParam();
 }
